@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>El Reto de los 241.026 Clics</title>
+    <title>El Reto de los 2.410 Clics</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -13,20 +13,23 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
             text-align: center;
         }
         h1 { margin-bottom: 10px; }
-        p { margin-bottom: 30px; font-size: 1.2em; max-width: 600px; padding: 0 20px; }
+        p { margin-bottom: 20px; font-size: 1.15em; max-width: 600px; line-height: 1.5; }
         
         #login-screen, #game-screen, #secret-screen {
             display: none;
             flex-direction: column;
             align-items: center;
+            width: 100%;
+            max-width: 650px;
         }
         
-        /* La pantalla de login es la que se ve primero */
         #login-screen.active, #game-screen.active, #secret-screen.active {
             display: flex;
         }
@@ -38,7 +41,9 @@
             border-radius: 5px;
             border: none;
             text-align: center;
-            text-transform: uppercase; /* Ayuda visual para el usuario */
+            text-transform: uppercase;
+            width: 80%;
+            max-width: 300px;
         }
         
         button {
@@ -52,17 +57,27 @@
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             transition: transform 0.1s;
             margin-top: 20px;
+            touch-action: manipulation; /* Evita zoom al pulsar rápido en móvil */
+            user-select: none;
+            -webkit-user-select: none;
         }
         button:active { transform: scale(0.95); }
+        button:disabled { opacity: 0.6; cursor: wait; }
         
         #counter {
             font-size: 4em;
             font-weight: bold;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             color: #f1c40f;
+            user-select: none;
         }
 
-        /* Estilos del modal (sustituto del alert) */
+        #sync-status {
+            font-size: 0.85em;
+            color: #bdc3c7;
+            height: 20px;
+        }
+
         #modal {
             display: none;
             position: fixed;
@@ -71,6 +86,8 @@
             justify-content: center;
             align-items: center;
             z-index: 1000;
+            padding: 20px;
+            box-sizing: border-box;
         }
         .modal-content {
             background: #34495e;
@@ -87,8 +104,12 @@
 
         #secret-screen {
             background-color: #27ae60;
-            padding: 40px;
-            border-radius: 10px;
+            padding: 30px 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        #secret-screen p {
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -100,22 +121,25 @@
         <p>Introduce las credenciales para continuar.</p>
         <input type="text" id="username" placeholder="Usuario" autocomplete="off">
         <input type="password" id="password" placeholder="Contraseña">
-        <button onclick="login()">Entrar</button>
+        <button id="login-btn" onclick="login()">Entrar</button>
     </div>
 
     <!-- PANTALLA DEL JUEGO -->
     <div id="game-screen">
         <h1>El Reto Final: 24/10/26</h1>
-        <p><strong>Reglas:</strong> Nada de trampas. Si detectamos un Autoclicker, tu contador volverá a CERO.</p>
+        <p><strong>Reglas:</strong> Llegad a los 2.410 clics. Nada de trampas: si detectamos un Autoclicker, el contador volverá a CERO.</p>
         <div id="counter">0</div>
+        <div id="sync-status"></div>
         <button id="btn">¡CLIC!</button>
     </div>
 
     <!-- PANTALLA SECRETA -->
     <div id="secret-screen">
-        <h1>¡Prueba superada!</h1>
-        <p>Habéis conseguido llegar a los 241.026 clics.</p>
-        <h2>Vuestro código secreto es: 8472</h2>
+        <h1>¡RETO SUPERADO! 💥</h1>
+        <p>Menuda velocidad de dedos tenéis. Vuestros pulgares acaban de entrar en el libro Guinness de las bodas. Ahora toca cambiar la pantalla por el asfalto.</p>
+        <p>El tesoro empieza a coger altura. Poned rumbo al Aeropuerto de Logroño-Agoncillo ✈️, pero no hace falta que paséis el control de seguridad ni facturéis maletas.</p>
+        <p>Vuestra siguiente pista está esperando a la entrada del recinto, bien escondida en la espalda de una de las señales⛔⚠️.</p>
+        <p><strong>Id hasta allí, dad la vuelta al cartel adecuado… ¡y seguid el rastro!</strong></p>
     </div>
 
     <!-- MODAL ANTITRAMPAS -->
@@ -128,30 +152,97 @@
     </div>
 
     <script>
-        // Configuración principal
-        const TARGET_CLICKS = 241026;
+        // ==========================================
+        // CONFIGURACIÓN
+        // ==========================================
+        const TARGET_CLICKS = 2410;
+        
+        // Pega aquí la URL de tu Firebase Realtime Database (sin barra al final)
+        // Ejemplo: "https://mi-boda-2026-default-rtdb.europe-west1.firebasedatabase.app"
+        const FIREBASE_URL = ""; 
+
         let count = parseInt(localStorage.getItem('bodaClicks')) || 0;
         let lastClickTime = 0;
+        let currentUser = "";
+        let saveTimeout = null;
 
         // Referencias al DOM
         const loginScreen = document.getElementById('login-screen');
         const gameScreen = document.getElementById('game-screen');
         const secretScreen = document.getElementById('secret-screen');
         const counterEl = document.getElementById('counter');
+        const syncStatusEl = document.getElementById('sync-status');
+        const loginBtn = document.getElementById('login-btn');
         const btn = document.getElementById('btn');
         const modal = document.getElementById('modal');
         const modalText = document.getElementById('modal-text');
 
+        // Permitir entrar pulsando Enter
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') login();
+        });
+
+        // Cargar progreso desde la nube
+        async function loadCloudClicks(user) {
+            if (!FIREBASE_URL) return;
+            try {
+                const res = await fetch(`${FIREBASE_URL}/progreso/${user}.json`);
+                if (res.ok) {
+                    const cloudCount = await res.json();
+                    if (typeof cloudCount === 'number') {
+                        count = cloudCount;
+                        localStorage.setItem('bodaClicks', count);
+                    }
+                }
+            } catch (err) {
+                console.warn("No se pudo conectar con la nube, usando guardado local.", err);
+            }
+        }
+
+        // Guardar progreso en la nube
+        async function saveCloudClicks(immediate = false) {
+            if (!FIREBASE_URL || !currentUser) return;
+
+            const performSave = async () => {
+                try {
+                    syncStatusEl.textContent = "Guardando...";
+                    await fetch(`${FIREBASE_URL}/progreso/${currentUser}.json`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(count)
+                    });
+                    syncStatusEl.textContent = "Progreso guardado ✓";
+                } catch (err) {
+                    syncStatusEl.textContent = "Guardado en este dispositivo";
+                }
+            };
+
+            clearTimeout(saveTimeout);
+            if (immediate) {
+                await performSave();
+            } else {
+                // Espera 600ms tras el último clic para no saturar peticiones
+                saveTimeout = setTimeout(performSave, 600);
+            }
+        }
+
         // Función de inicio de sesión
-        function login() {
+        async function login() {
             const user = document.getElementById('username').value.trim().toUpperCase();
             const pass = document.getElementById('password').value.trim();
 
             if (user === 'BODAMARIAYFREDDY' && pass === '2026') {
+                currentUser = user;
+                loginBtn.disabled = true;
+                loginBtn.textContent = "Cargando...";
+
+                await loadCloudClicks(currentUser);
+
+                loginBtn.disabled = false;
+                loginBtn.textContent = "Entrar";
                 loginScreen.classList.remove('active');
-                // Actualiza el texto con separador de miles antes de mostrar
-                counterEl.textContent = count.toLocaleString('es-ES'); 
-                checkWin(); // Comprueba si ya habían llegado a la meta antes
+                counterEl.textContent = count.toLocaleString('es-ES');
+                checkWin();
             } else {
                 showModal("Credenciales incorrectas. Intentadlo de nuevo.");
             }
@@ -193,13 +284,17 @@
             playMockSound();
             showModal("¡Meeec! " + reason + " Vuelta a cero por tramposos.");
             count = 0;
-            updateCounter();
+            updateCounter(true);
         }
 
         // Guardado de clics
-        function updateCounter() {
+        function updateCounter(immediateCloudSave = false) {
             counterEl.textContent = count.toLocaleString('es-ES');
             localStorage.setItem('bodaClicks', count);
+            
+            // Guarda inmediatamente si ganan, hacen trampas o cada 15 clics
+            const forceSave = immediateCloudSave || (count % 15 === 0) || (count >= TARGET_CLICKS);
+            saveCloudClicks(forceSave);
         }
 
         // Comprobación de victoria
