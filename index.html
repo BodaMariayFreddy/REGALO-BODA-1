@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Desbloquea tu regalo</title>
+    <title>El Reto de los 241.026 Clics</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -18,16 +18,32 @@
             text-align: center;
         }
         h1 { margin-bottom: 10px; }
-        p { margin-bottom: 40px; font-size: 1.2em; max-width: 600px; }
-        #counter {
-            font-size: 4em;
-            font-weight: bold;
-            margin-bottom: 30px;
-            color: #f1c40f;
+        p { margin-bottom: 30px; font-size: 1.2em; max-width: 600px; padding: 0 20px; }
+        
+        #login-screen, #game-screen, #secret-screen {
+            display: none;
+            flex-direction: column;
+            align-items: center;
         }
-        #btn {
-            padding: 20px 40px;
-            font-size: 2em;
+        
+        /* La pantalla de login es la que se ve primero */
+        #login-screen.active, #game-screen.active, #secret-screen.active {
+            display: flex;
+        }
+
+        input {
+            padding: 10px;
+            margin: 10px;
+            font-size: 1.2em;
+            border-radius: 5px;
+            border: none;
+            text-align: center;
+            text-transform: uppercase; /* Ayuda visual para el usuario */
+        }
+        
+        button {
+            padding: 15px 30px;
+            font-size: 1.5em;
             background-color: #e74c3c;
             color: white;
             border: none;
@@ -35,48 +51,117 @@
             cursor: pointer;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             transition: transform 0.1s;
+            margin-top: 20px;
         }
-        #btn:active { transform: scale(0.95); }
-        #secret {
+        button:active { transform: scale(0.95); }
+        
+        #counter {
+            font-size: 4em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #f1c40f;
+        }
+
+        /* Estilos del modal (sustituto del alert) */
+        #modal {
             display: none;
-            background-color: #27ae60;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #34495e;
             padding: 30px;
             border-radius: 10px;
-            font-size: 2em;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-content button {
+            background-color: #3498db;
+            font-size: 1.2em;
+            padding: 10px 20px;
+        }
+
+        #secret-screen {
+            background-color: #27ae60;
+            padding: 40px;
+            border-radius: 10px;
         }
     </style>
 </head>
 <body>
 
-    <div id="game">
-        <h1>El Reto Final</h1>
-        <p>Para revelar la clave secreta, debes hacer clic en el botón 10 veces. <br><br><strong>Reglas:</strong> Si usas trampas o dejas de hacer clic durante más de 10 segundos, el contador volverá a cero.</p>
-        
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-screen" class="active">
+        <h1>Acceso al Reto</h1>
+        <p>Introduce las credenciales para continuar.</p>
+        <input type="text" id="username" placeholder="Usuario" autocomplete="off">
+        <input type="password" id="password" placeholder="Contraseña">
+        <button onclick="login()">Entrar</button>
+    </div>
+
+    <!-- PANTALLA DEL JUEGO -->
+    <div id="game-screen">
+        <h1>El Reto Final: 24/10/26</h1>
+        <p><strong>Reglas:</strong> Nada de trampas. Si detectamos un Autoclicker, tu contador volverá a CERO.</p>
         <div id="counter">0</div>
         <button id="btn">¡CLIC!</button>
     </div>
 
-    <div id="secret">
-        ¡Enhorabuena! La clave es: <strong>8472</strong> <!-- Cambia tu clave aquí -->
+    <!-- PANTALLA SECRETA -->
+    <div id="secret-screen">
+        <h1>¡Prueba superada!</h1>
+        <p>Habéis conseguido llegar a los 241.026 clics.</p>
+        <h2>Vuestro código secreto es: 8472</h2>
+    </div>
+
+    <!-- MODAL ANTITRAMPAS -->
+    <div id="modal">
+        <div class="modal-content">
+            <h2 id="modal-title">¡Aviso!</h2>
+            <p id="modal-text"></p>
+            <button onclick="closeModal()">Entendido</button>
+        </div>
     </div>
 
     <script>
-        const targetClicks = 10;
-        let count = 0;
+        // Configuración principal
+        const TARGET_CLICKS = 241026;
+        let count = parseInt(localStorage.getItem('bodaClicks')) || 0;
         let lastClickTime = 0;
-        let timeoutId;
-        
+
+        // Referencias al DOM
+        const loginScreen = document.getElementById('login-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const secretScreen = document.getElementById('secret-screen');
         const counterEl = document.getElementById('counter');
         const btn = document.getElementById('btn');
-        const secretEl = document.getElementById('secret');
-        const gameEl = document.getElementById('game');
+        const modal = document.getElementById('modal');
+        const modalText = document.getElementById('modal-text');
 
-        // Función para generar un sonido de burla (trompeta triste / wah-wah)
+        // Función de inicio de sesión
+        function login() {
+            const user = document.getElementById('username').value.trim().toUpperCase();
+            const pass = document.getElementById('password').value.trim();
+
+            if (user === 'BODAMARIAYFREDDY' && pass === '2026') {
+                loginScreen.classList.remove('active');
+                // Actualiza el texto con separador de miles antes de mostrar
+                counterEl.textContent = count.toLocaleString('es-ES'); 
+                checkWin(); // Comprueba si ya habían llegado a la meta antes
+            } else {
+                showModal("Credenciales incorrectas. Intentadlo de nuevo.");
+            }
+        }
+
+        // Sistema antitrampas: Sonido
         function playMockSound() {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
             if (!AudioContext) return;
             const ctx = new AudioContext();
-            
             const osc = ctx.createOscillator();
             const gain = ctx.createGain();
             
@@ -84,7 +169,6 @@
             gain.connect(ctx.destination);
             
             osc.type = 'sawtooth';
-            // Tono descendente
             osc.frequency.setValueAtTime(300, ctx.currentTime);
             osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 1);
             
@@ -95,47 +179,62 @@
             osc.stop(ctx.currentTime + 1);
         }
 
-        function resetGame(reason) {
-            count = 0;
-            counterEl.textContent = count;
-            playMockSound();
-            alert("¡Meeec! " + reason + " Vuelta a empezar.");
+        // Control del Modal
+        function showModal(text) {
+            modalText.textContent = text;
+            modal.style.display = 'flex';
+        }
+        function closeModal() {
+            modal.style.display = 'none';
         }
 
+        // Sistema antitrampas: Castigo
+        function resetCheater(reason) {
+            playMockSound();
+            showModal("¡Meeec! " + reason + " Vuelta a cero por tramposos.");
+            count = 0;
+            updateCounter();
+        }
+
+        // Guardado de clics
+        function updateCounter() {
+            counterEl.textContent = count.toLocaleString('es-ES');
+            localStorage.setItem('bodaClicks', count);
+        }
+
+        // Comprobación de victoria
+        function checkWin() {
+            if (count >= TARGET_CLICKS) {
+                gameScreen.classList.remove('active');
+                secretScreen.classList.add('active');
+            } else {
+                gameScreen.classList.add('active');
+            }
+        }
+
+        // Evento principal del botón
         btn.addEventListener('click', function(e) {
             const now = Date.now();
 
-            // 1. Detectar autoclickers mediante e.isTrusted (evita scripts que simulan clics)
+            // 1. Detectar autoclickers de software (simulados)
             if (!e.isTrusted) {
-                clearTimeout(timeoutId);
-                resetGame("Eso ha sido un clic falso.");
+                resetCheater("Eso ha sido un clic falso.");
                 return;
             }
 
-            // 2. Detectar autoclickers por velocidad inhumana (menos de 30ms entre clics)
+            // 2. Detectar velocidad inhumana (menos de 30ms)
             if (lastClickTime !== 0 && (now - lastClickTime) < 30) {
-                clearTimeout(timeoutId);
-                resetGame("¡Vas demasiado rápido! ¿Usando un Autoclicker?");
+                resetCheater("¡Vais demasiado rápido! ¿Usando un Autoclicker?");
                 return;
             }
             
             lastClickTime = now;
             count++;
-            counterEl.textContent = count;
-
-            // Condición de victoria
-            if (count >= targetClicks) {
-                clearTimeout(timeoutId);
-                gameEl.style.display = 'none';
-                secretEl.style.display = 'block';
-                return;
+            updateCounter();
+            
+            if (count >= TARGET_CLICKS) {
+                checkWin();
             }
-
-            // 3. Reiniciar si pasan más de 10 segundos (10000 milisegundos)
-            clearTimeout(timeoutId);
-            timeoutId = setTimeout(() => {
-                resetGame("Te has dormido. Han pasado más de 10 segundos.");
-            }, 10000);
         });
     </script>
 </body>
